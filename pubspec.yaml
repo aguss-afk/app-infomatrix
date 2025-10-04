@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   image_picker: ^1.2.0
   shared_preferences: ^2.1.1
+  supabase_flutter: ^2.0.0
+  flutter_map: ^4.0.0
+  latlong2: ^0.8.1
+  http: ^0.13.5
   path_provider: ^2.0.14
   google_maps_flutter: ^2.4.0
   geolocator: ^9.0.2

@@ -4,10 +4,27 @@ import 'nuevo_reporte.dart';
 import 'mapa_problemas.dart';
 import 'models/reporte.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Si usas FlutterFire CLI genera firebase_options.dart y pásalo a initializeApp
+
+  await Supabase.initialize(
+    url: 'https://ztjotyybcvnxveohnewv.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0am90eXliY3ZueHZlb2huZXd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1ODIyOTMsImV4cCI6MjA3NTE1ODI5M30.s0kesjB8FgNnnw1BajM-xuIC2kCtsn4Mw1Sq3pq6ARQ',
+  );
+  // Ensure there's a single anonymous user for the whole app so uploads and streams use the same user_id
+  try {
+    final supabase = Supabase.instance.client;
+    if (supabase.auth.currentUser == null) {
+      await supabase.auth.signInAnonymously();
+      debugPrint('Signed in anonymously at startup. userId=${supabase.auth.currentUser?.id}');
+    } else {
+      debugPrint('Supabase already has user: ${supabase.auth.currentUser?.id}');
+    }
+  } catch (e) {
+    debugPrint('Anonymous sign-in failed at startup: $e');
+  }
   runApp(const MainApp());
 }
 
@@ -40,7 +57,7 @@ class _MainHomeState extends State<MainHome> {
 
   List<Widget> get _pages => [
         // Página de lista (reportes cargados)
-        ListaProblemasPage(reportes: _reportes),
+        const ListaProblemasPage(),
         // Página central (no usada porque abrimos pantalla nueva con Navigator)
         const Center(child: Text("Página central (+)")),
         // Página ubicación (mapa) - se mantiene dentro del Scaffold para que la barra siga visible
