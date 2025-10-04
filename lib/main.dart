@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'lista_problemas.dart';
 import 'nuevo_reporte.dart';
 import 'mapa_problemas.dart';
@@ -9,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Si usas FlutterFire CLI genera firebase_options.dart y pásalo a initializeApp
-  await Firebase.initializeApp();
   runApp(const MainApp());
 }
 

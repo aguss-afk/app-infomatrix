@@ -158,7 +158,6 @@ class _NuevoReportePageState extends State<NuevoReportePage> {
               ),
             ),
 
-            const Spacer(),
 
             // Botón fijo en la parte inferior
             SizedBox(
@@ -168,7 +167,7 @@ class _NuevoReportePageState extends State<NuevoReportePage> {
                 icon: const Icon(Icons.save),
                 label: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 14.0),
-                  child: Text('Guardar reporte'),
+                  child: Text('Enviar reporte'),
                 ),
               ),
             ),
