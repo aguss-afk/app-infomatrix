@@ -2,6 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
+import 'map_select_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class NuevoReportePage extends StatefulWidget {
   const NuevoReportePage({super.key});
@@ -23,6 +28,9 @@ class _NuevoReportePageState extends State<NuevoReportePage> {
   final TextEditingController _descripcionCtrl = TextEditingController();
   File? _pickedImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isSubmitting = false;
+  LatLng? _selectedLocation;
+  String? _selectedAddress;
 
   Future<void> _pickImage() async {
     final XFile? picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
@@ -39,21 +47,59 @@ class _NuevoReportePageState extends State<NuevoReportePage> {
     super.dispose();
   }
 
-  void _guardar() {
+  Future<void> _guardar() async {
     if (_pickedImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor adjunta una foto antes de guardar')),
       );
       return;
     }
+    if (_selectedLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor selecciona una ubicación antes de guardar')),
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      final supabase = Supabase.instance.client;
+      if (supabase.auth.currentUser == null) {
+        await supabase.auth.signInAnonymously();
+      }
+      final user = supabase.auth.currentUser!;
+      final userId = user.id;
 
-    final data = {
-      'titulo': _selectedTitulo ?? _titulos.first,
-      'direccion': _direccionCtrl.text,
-      'descripcion': _descripcionCtrl.text,
-      'imagePath': _pickedImage!.path,
-    };
-    Navigator.of(context).pop(data);
+    final bytes = await _pickedImage!.readAsBytes();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final basename = _pickedImage!.path.split(RegExp(r'[\\/]+')).last;
+    final fileName = '${timestamp}_$basename';
+
+    // Upload bytes to Supabase Storage bucket 'reportes'
+    await supabase.storage.from('reportes').uploadBinary(fileName, bytes);
+
+      // Construct public URL for the uploaded object. Replace with your project URL if different.
+      final supabaseUrl = 'https://ztjotyybcvnxveohnewv.supabase.co';
+      final publicUrl = '$supabaseUrl/storage/v1/object/public/reportes/$fileName';
+
+      // Insert row into 'reportes' table
+      await supabase.from('reportes').insert({
+        'titulo': _selectedTitulo ?? _titulos.first,
+        'direccion': _selectedAddress ?? _direccionCtrl.text,
+        'descripcion': _descripcionCtrl.text,
+        'image_url': publicUrl,
+        'user_id': userId,
+        'latitude': _selectedLocation?.latitude,
+        'longitude': _selectedLocation?.longitude,
+        'created_at': DateTime.now().toIso8601String(),
+      }).select();
+
+
+      // If we reach here without throwing, treat as success.
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte enviado')));
+      Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -87,13 +133,51 @@ class _NuevoReportePageState extends State<NuevoReportePage> {
                     ),
                     const SizedBox(height: 12),
 
-                    // Dirección (temporalmente texto)
-                    TextField(
-                      controller: _direccionCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Dirección (se reemplazará por mapa)',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
+                    // Dirección: botón que abre el mapa en lugar de TextField
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.map_outlined),
+              label: Text(_selectedLocation == null
+                ? 'Seleccionar ubicación en el mapa'
+                : 'Ubicación: ' + (_selectedAddress == null ? '${_selectedLocation!.latitude.toStringAsFixed(5)}, ${_selectedLocation!.longitude.toStringAsFixed(5)}' : (_selectedAddress!.length > 20 ? _selectedAddress!.substring(0, 20) + '...' : _selectedAddress!))),
+                            onPressed: () async {
+                              final res = await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MapSelectPage()));
+                              if (res is Map<String, dynamic>) {
+                                final lat = (res['lat'] as num).toDouble();
+                                final lng = (res['lng'] as num).toDouble();
+                                String? name;
+                                try {
+                                  final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng');
+                                  final r = await http.get(url, headers: {'User-Agent': 'app2/1.0'});
+                                  if (r.statusCode == 200) {
+                                    final data = json.decode(r.body) as Map<String, dynamic>;
+                                    name = data['display_name'] as String?;
+                                  }
+                                } catch (e) {
+                                  debugPrint('Reverse geocode failed: $e');
+                                }
+
+                                setState(() {
+                                  _selectedLocation = LatLng(lat, lng);
+                                  _selectedAddress = name;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        if (_selectedLocation != null) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => setState(() {
+                              _selectedLocation = null;
+                              _selectedAddress = null;
+                            }),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 8),
 
@@ -163,11 +247,11 @@ class _NuevoReportePageState extends State<NuevoReportePage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _guardar,
-                icon: const Icon(Icons.save),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14.0),
-                  child: Text('Enviar reporte'),
+                onPressed: _isSubmitting ? null : _guardar,
+                icon: _isSubmitting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
+                label: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14.0),
+                  child: Text(_isSubmitting ? 'Enviando...' : 'Enviar reporte'),
                 ),
               ),
             ),

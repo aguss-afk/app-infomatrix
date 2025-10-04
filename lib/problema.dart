@@ -16,7 +16,16 @@ class ProblemaPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (reporte.imagePath.isNotEmpty)
+            if ((reporte.imageUrl ?? '').isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  reporte.imageUrl!,
+                  height: 220,
+                  fit: BoxFit.cover,
+                ),
+              )
+            else if (reporte.imagePath.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.file(
@@ -32,7 +41,7 @@ class ProblemaPage extends StatelessWidget {
               children: [
                 const Icon(Icons.location_on_outlined, size: 18),
                 const SizedBox(width: 6),
-                Expanded(child: Text(reporte.direccion, style: const TextStyle(fontSize: 20))),
+                Expanded(child: Text(reporte.direccion, style: const TextStyle(color: Color.fromARGB(255, 87, 87, 87), fontSize:  16))),
               ],
             ),
             const SizedBox(height: 12),
